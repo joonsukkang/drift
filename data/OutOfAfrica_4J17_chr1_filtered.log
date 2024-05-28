@@ -1,0 +1,36 @@
+PLINK v2.00a4 64-bit (9 Jan 2023)
+Options in effect:
+  --bp-space 2000
+  --maf 0.01
+  --make-bed
+  --max-alleles 2
+  --min-alleles 2
+  --out ../data/sim/OutOfAfrica_4J17_chr1_filtered
+  --vcf ../data/sim/OutOfAfrica_4J17_chr1.vcf
+
+Hostname: joons-MacBook-Air.local
+Working directory: /Users/jkang/Library/CloudStorage/Box-Box/research/drift/code
+Start time: Sun Apr 14 21:26:45 2024
+
+Random number seed: 1713148005
+16384 MiB RAM detected; reserving 8192 MiB for main workspace.
+Using up to 8 compute threads.
+--vcf: 2792638 variants scanned.
+--vcf: ../data/sim/OutOfAfrica_4J17_chr1_filtered-temporary.pgen +
+../data/sim/OutOfAfrica_4J17_chr1_filtered-temporary.pvar.zst +
+../data/sim/OutOfAfrica_4J17_chr1_filtered-temporary.psam written.
+400 samples (0 females, 0 males, 400 ambiguous; 400 founders) loaded from
+../data/sim/OutOfAfrica_4J17_chr1_filtered-temporary.psam.
+2781968 out of 2792638 variants loaded from
+../data/sim/OutOfAfrica_4J17_chr1_filtered-temporary.pvar.zst.
+Note: No phenotype data present.
+Calculating allele frequencies... done.
+1871529 variants removed due to allele frequency threshold(s)
+(--maf/--max-maf/--mac/--max-mac).
+--bp-space: 801476 variants removed (108963 remaining).
+108963 variants remaining after main filters.
+Writing ../data/sim/OutOfAfrica_4J17_chr1_filtered.fam ... done.
+Writing ../data/sim/OutOfAfrica_4J17_chr1_filtered.bim ... done.
+Writing ../data/sim/OutOfAfrica_4J17_chr1_filtered.bed ... done.
+
+End time: Sun Apr 14 21:26:54 2024

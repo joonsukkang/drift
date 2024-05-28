@@ -1,0 +1,223 @@
+---
+title: "Simulation: OutOfAfrica_4J17"
+output: html_document
+---
+
+```{r, suppressWarnings=TRUE}
+library(here)
+library(tidyverse)
+library(genio)
+library(ape)
+library(gridExtra)
+library(pheatmap)
+
+source(here('code', 'treemix', 'plotting_funcs.R'))
+source(here('code', 'treelax.R'))
+source(here('code', 'treelax-utils.R'))
+```
+
+
+# load data and draw STRUCTURE bar plot
+
+```{r}
+model <- 'OutOfAfrica_4J17'
+chrom <- 1
+
+filename <- here('data', 'sim', paste0(model, '_chr', chrom, '_filtered'))
+pop <- factor(rep(c('YRI',  'CEU', 'CHB', 'JPT'), each=100),
+              levels=c('YRI',  'CEU', 'CHB', 'JPT'))
+K <- 4
+```
+
+
+```{r}
+# GPQX
+# G (S x N): genotype data
+# P (S x K): population allele frequencies
+# Q (N x K): individuals' population memberships
+# X (S x K): minor allele counts
+gpqx <- prep_GPQX_sim(filename, K, pop)
+loadings_order <- set_loadings_order((gpqx$Q)[,-1])
+plot_Q(gpqx$Q, pop, loadings_order = loadings_order)
+ggsave(here('fig', 'raw', paste0(model, '_chr', chrom, '_Q.pdf')), width=5, height=2)
+```
+
+# fit tree and treemix
+
+```{r}
+# m2 returns an error.
+out_treemix <- estimate_L_from_X_treemix(gpqx$X, gpqx$popsize,
+                                         m1=TRUE, m2=FALSE)
+```
+
+
+```{r}
+pdf(file=here('fig', 'raw', paste0(model, '_chr', chrom, '_treemix.pdf')), 
+    width=6, height=4)
+estimate_L_from_X_treemix(gpqx$X, gpqx$popsize,
+                          m1=TRUE, m2=TRUE)
+dev.off()
+
+```
+
+
+
+```{r}
+pdf(file=here('fig', 'raw', paste0(model, '_chr', chrom, '_T.pdf')), 
+    width=8, height=5)
+plot_T(out_treemix, edgelabels_adj = 1)
+dev.off()
+```
+
+# fit treelax
+
+```{r, suppressWarnings=TRUE, fig.show='hide'}
+lambda.grid <- seq(0,5e-5, by=1e-7)
+
+# suppress plot outputs
+cv.out <- treelax.cv(X = gpqx$X, 
+                     popsize = gpqx$popsize, 
+                     lambda.grid = lambda.grid,
+                     nfold=10)
+```
+
+```{r}
+ts.plot(rowMeans(cv.out))
+lambda.opt <- lambda.grid[which.min(rowMeans(cv.out))]
+print(lambda.opt)
+
+out_treelax <- treelax(X = gpqx$X, popsize = gpqx$popsize, lambda=lambda.opt)
+```
+
+
+# estimated treelax result
+
+```{r}
+print(round(out_treelax$L.ref, 6))
+print(round(out_treelax$L, 6))
+print(round(out_treelax$L - out_treelax$L.ref, 6))
+```
+
+
+# heatmap for tree (using `out_treelax$L.ref`)
+
+```{r, fig.width=5, fig.height=5}
+Oslo30 <- hcl.colors(60, "Oslo")[1:30] # make the highest value not too dark (number color = black)
+
+breaks1 <- seq(0, max(compute_Delta_from_P(compute_P_from_X(gpqx$X, gpqx$popsize))), 
+              length=30)
+pheatmap(mat = compute_Delta_from_P(compute_P_from_X(gpqx$X, gpqx$popsize)), 
+         #main = 'Genetic Distance',
+         filename = here('fig', 'raw', paste0(model, '_chr', chrom, '_D_distance.pdf')),
+         width = 4,
+         height = 3,
+         
+         cluster_row=FALSE, cluster_cols=FALSE,
+         display_numbers = TRUE, fontsize = 10, number_format = "%.6f",
+         number_color = 'black', color = Oslo30, breaks=breaks1
+         )
+
+for (j in 1:ncol(out_treelax$L.ref)){
+  pheatmap(mat = compute_Delta_from_L(out_treelax$L.ref[,j]), 
+           main = paste0('D',j),
+           filename = here('fig', 'raw', paste0(model, '_chr', chrom, '_D_tree_D',j,'.pdf')),
+           width = 2,
+           height = 2,
+           
+           cluster_row=FALSE, cluster_cols=FALSE,
+           display_numbers = TRUE, fontsize = 10, number_format = "%.4f",
+           number_color = 'black', color = Oslo30, breaks=breaks1,
+           legend=FALSE
+           )
+}
+
+matTreeResidual <- compute_Delta_from_P(compute_P_from_X(gpqx$X, gpqx$popsize)) - compute_Delta_from_L(out_treelax$L.ref)
+
+breaks2 <- seq(-max(abs(matTreeResidual)), max(abs(matTreeResidual)), length=30)
+pheatmap(mat = matTreeResidual, 
+         #main = ,
+         filename = here('fig', 'raw', paste0(model, '_chr', chrom, '_D_tree_residual.pdf')),
+         width = 4,
+         height = 3,
+         
+         cluster_row=FALSE, cluster_cols=FALSE,
+         display_numbers = TRUE, fontsize = 10, number_format = "%.6f",
+         number_color = 'black', color = hcl.colors(30, 'Blue-Red 2'), breaks=breaks2
+         )
+
+```
+
+
+
+# heatmap for treelax
+
+```{r}
+for (j in 1:ncol(out_treelax$L.ref)){
+  pheatmap(mat = compute_Delta_from_L(out_treelax$L[,j]), 
+           main = paste0('D',j),
+           filename = here('fig', 'raw', paste0(model, '_chr', chrom, '_D_treelax_D',j,'.pdf')),
+           width = 2,
+           height = 2,
+           
+           cluster_row=FALSE, cluster_cols=FALSE,
+           display_numbers = TRUE, fontsize = 10, number_format = "%.4f",
+           number_color = 'black', color = Oslo30, breaks=breaks1,
+           legend=FALSE
+           )
+}
+
+
+matTreelaxResidual <- compute_Delta_from_P(compute_P_from_X(gpqx$X, gpqx$popsize)) - compute_Delta_from_L(out_treelax$L)
+
+pheatmap(mat = matTreelaxResidual, 
+         #main = ,
+         filename = here('fig', 'raw', paste0(model, '_chr', chrom, '_D_treelax_residual.pdf')),
+         width = 4,
+         height = 3,
+         
+         cluster_row=FALSE, cluster_cols=FALSE,
+         display_numbers = TRUE, fontsize = 10, number_format = "%.6f",
+         number_color = 'black', color = hcl.colors(30, 'Blue-Red 2'), breaks=breaks2
+         )
+```
+
+
+# L, M, M2 plots
+
+```{r}
+figL.tree <- plot_L(out_treelax$L.ref, legend = FALSE)
+figL.treelax <- plot_L(out_treelax$L, legend = FALSE)
+
+figM.tree <- plot_M(M = gpqx$Q %*% out_treelax$L.ref, 
+                    pop=pop, loadings_order = loadings_order, legend = FALSE)
+figM.treelax <- plot_M(M = gpqx$Q %*% out_treelax$L, 
+                       pop=pop, loadings_order = loadings_order, legend = FALSE)
+
+figM2.tree <- plot_M2(L = out_treelax$L.ref,
+                      M = gpqx$Q %*% out_treelax$L.ref,
+                      P = compute_P_from_X(gpqx$X, gpqx$popsize),
+                      G = gpqx$G,
+                      pop = pop,
+                      loadings_order = loadings_order,
+                      legend = TRUE)
+figM2.treelax <- plot_M2(L = out_treelax$L,
+                         M = gpqx$Q %*% out_treelax$L,
+                         P = compute_P_from_X(gpqx$X, gpqx$popsize),
+                         G = gpqx$G,
+                         pop = pop,
+                         loadings_order = loadings_order,
+                         legend = TRUE)
+
+fig.tree <- grid.arrange(figL.tree, figM.tree, figM2.tree, nrow=1, widths=c(1,2,2.5))
+ggsave(here('fig', 'raw', paste0(model, '_chr', chrom, '_LMM2_tree.pdf')),
+       fig.tree, 
+       width=6, height=3)
+
+fig.treelax <- grid.arrange(figL.treelax, figM.treelax, figM2.treelax, nrow=1, widths=c(1,2,2.5))
+ggsave(here('fig', 'raw', paste0(model, '_chr', chrom, '_LMM2_treelax.pdf')),
+       fig.treelax, 
+       width=6, height=3)
+```
+
+
+
